@@ -1,10 +1,11 @@
 package com.ewaste.ewaste_backend.dto;
 
 public class LoginRequest {
-    private String identifier; // email or phone
-    private String password;
 
-    // Getters and setters
+    private String identifier;
+    private String password;
+    private String role;
+
     public String getIdentifier() {
         return identifier;
     }
@@ -19,5 +20,13 @@ public class LoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

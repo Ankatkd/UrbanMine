@@ -10,14 +10,12 @@ public class UserProfileData {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long userId; // Foreign key reference to ewasteusers
-
+    private Long userId;
     private String date;
     private String itemType;
     private Double weight;
     private String status;
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

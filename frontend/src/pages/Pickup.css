@@ -1,0 +1,5 @@
+/* Pickup.css */
+.react-datepicker__day--highlighted-red-date {
+    color: red;
+    text-decoration: line-through;
+}

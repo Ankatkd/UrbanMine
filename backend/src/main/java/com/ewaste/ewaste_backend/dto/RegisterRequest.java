@@ -1,6 +1,7 @@
 package com.ewaste.ewaste_backend.dto;
 
 public class RegisterRequest {
+
     private String fullname;
     private String phone;
     private String email;
@@ -8,7 +9,6 @@ public class RegisterRequest {
     private String location;
     private String role;
 
-    // Getters and Setters
     public String getFullname() {
         return fullname;
     }

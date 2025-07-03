@@ -1,3 +1,48 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom styles for react-datepicker */
+
+/* Styles for react-datepicker to highlight full dates */
+.react-datepicker__day--disabled.red-date {
+  color: red !important; /* Make text red */
+  background-color: #ffeaea !important; /* Light red background to highlight */
+  text-decoration: line-through; /* Optional: cross out the date */
+}
+
+/* Ensure disabled dates are styled as such (react-datepicker does this by default, but double check if you override) */
+.react-datepicker__day--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Basic styling for the datepicker input to match other form fields */
+/* This might already be covered by your TailwindCSS, but ensure the DatePicker input itself looks good */
+.react-datepicker-wrapper .react-datepicker__input-container input {
+    /* Example: Add some basic padding/border if not already inherited */
+    /* If you're using Tailwind's form styles, these might not be necessary,
+       but they are here for completeness if your input styling is manual. */
+    /* padding: 0.5rem; */
+    /* border-width: 1px; */
+    /* border-radius: 0.25rem; */
+    /* border-color: #d1d5db; /* Tailwind's default border-gray-300 */
+    /* width: 100%; /* Ensure it takes full width of its container */
+    /* box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+/* You might need to add specific overrides for the datepicker calendar itself */
+/* For example, to adjust font size or padding within the calendar */
+.react-datepicker {
+  font-family: 'Inter', sans-serif; /* Use your project's font if desired */
+  border-color: #e2e8f0; /* Match Tailwind's border-gray-200 */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Match Tailwind's shadow */
+}
+
+.react-datepicker__header {
+  background-color: #f7fafc; /* Match Tailwind's gray-50 or gray-100 */
+  border-bottom: 1px solid #edf2f7; /* Match Tailwind's border-gray-200 */
+}
+
+/* You can customize many more aspects of react-datepicker's appearance */
+/* Refer to react-datepicker documentation and its default CSS for more selectors */
