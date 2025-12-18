@@ -31,6 +31,9 @@ public class PickupRequestService {
     @Autowired
     private PickupLogRepository pickupLogRepository;
 
+    @Autowired
+    private AutoAssignmentService autoAssignmentService;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Transactional
@@ -43,7 +46,30 @@ public class PickupRequestService {
             pickupRequest.setStatus("PENDING");
         }
 
-        return pickupRequestRepository.save(pickupRequest);
+        // Save the pickup request first
+        PickupRequest savedRequest = pickupRequestRepository.save(pickupRequest);
+
+        // Try to auto-assign to the nearest worker
+        try {
+            System.out.println("Attempting auto-assignment for pickup request ID: " + savedRequest.getId() + 
+                             ", Pincode: " + savedRequest.getPincode() + 
+                             ", Address: " + savedRequest.getAddress());
+            
+            Worker assignedWorker = autoAssignmentService.smartAutoAssignPickup(savedRequest, 5); // Max 5 assignments per worker
+            if (assignedWorker != null) {
+                System.out.println("✅ SUCCESS: Auto-assigned pickup " + savedRequest.getId() + 
+                                " to worker " + assignedWorker.getUsername() + 
+                                " (ID: " + assignedWorker.getId() + 
+                                ", Pincode: " + assignedWorker.getPincode() + ")");
+            } else {
+                System.out.println("⚠️ WARNING: No suitable worker found for pickup " + savedRequest.getId());
+            }
+        } catch (Exception e) {
+            System.err.println("❌ ERROR: Auto-assignment failed for pickup " + savedRequest.getId() + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return savedRequest;
     }
 
     public List<PickupRequest> getPickupsByUserId(Long userId) {
@@ -120,7 +146,7 @@ public class PickupRequestService {
     }
 
     @Transactional
-    public PickupRequest updatePickupStatus(Long requestId, String newStatus, Long workerId, Double weightKg, String notes) {
+    public PickupRequest updatePickupStatus(Long requestId, String newStatus, Long workerId, Double weightKg, String notes, String brand, String itemDetails, Double estimatedValue) {
         Optional<PickupRequest> requestOptional = pickupRequestRepository.findById(requestId);
         if (requestOptional.isEmpty()) {
             throw new RuntimeException("Pickup request not found with ID: " + requestId);
@@ -148,6 +174,11 @@ public class PickupRequestService {
             request.setWeightKg(null);
         }
 
+        // Update editable fields if provided
+        if (brand != null) request.setBrand(brand);
+        if (itemDetails != null) request.setItemDetails(itemDetails);
+        if (estimatedValue != null) request.setEstimatedValue(estimatedValue);
+
         PickupRequest updatedRequest = pickupRequestRepository.save(request);
 
         PickupLog log = new PickupLog(
@@ -169,7 +200,6 @@ public class PickupRequestService {
 
         if (pickupOpt.isPresent()) {
             PickupRequest pickup = pickupOpt.get();
-            String oldStatus = pickup.getStatus();
 
             if (updateDTO.getStatus() != null && !updateDTO.getStatus().isEmpty()) {
                 pickup.setStatus(updateDTO.getStatus());
@@ -204,5 +234,56 @@ public class PickupRequestService {
 
     public PickupRequest getPickupRequestById(Long requestId) {
         return pickupRequestRepository.findById(requestId).orElse(null);
+    }
+    @Transactional
+    public PickupRequest markReached(Long requestId, Long workerId) {
+        PickupRequest request = getPickupRequestById(requestId);
+        if (request == null) throw new RuntimeException("Pickup not found");
+        if (!workerId.equals(request.getAssignedWorkerId())) throw new RuntimeException("Unauthorized");
+
+        request.setTrackingStatus("REACHED");
+        return pickupRequestRepository.save(request);
+    }
+
+    @Transactional
+    public PickupRequest reschedulePickup(Long requestId, Long workerId, String newDate, String reason) {
+        PickupRequest request = getPickupRequestById(requestId);
+        if (request == null) throw new RuntimeException("Pickup not found");
+        if (!workerId.equals(request.getAssignedWorkerId())) throw new RuntimeException("Unauthorized");
+
+        String oldDate = request.getDate();
+        request.setDate(newDate);
+        request.setRescheduleReason(reason);
+        request.setStatus("RESCHEDULED");
+        
+        Optional<Worker> worker = workerRepository.findById(workerId);
+        pickupLogRepository.save(new PickupLog(request, worker.orElse(null), "ASSIGNED", "RESCHEDULED", null, "Rescheduled from " + oldDate + " to " + newDate + ". Reason: " + reason));
+
+        return pickupRequestRepository.save(request);
+    }
+
+    @Transactional
+    public PickupRequest addPickupItem(Long requestId, com.ewaste.ewaste_backend.model.PickupItem item) {
+        PickupRequest request = getPickupRequestById(requestId);
+        if (request == null) throw new RuntimeException("Pickup not found");
+        
+        request.addItem(item);
+        
+        // Recalculate totals
+        double totalValue = request.getEstimatedValue() != null ? request.getEstimatedValue() : 0.0;
+        totalValue += item.getEstimatedValue() != null ? item.getEstimatedValue() : 0.0;
+        request.setEstimatedValue(totalValue);
+
+        return pickupRequestRepository.save(request);
+    }
+
+    public List<PickupRequest> getMissedPickupsForWorker(Long workerId) {
+        String today = LocalDate.now().format(DATE_FORMATTER);
+        // Logic: Date < Today AND Status != COMPLETED/CANCELLED
+        // Note: JPA Query derivation might be complex for string dates, using filtered stream for simplicity in prototype
+        List<PickupRequest> allAssigned = pickupRequestRepository.findByAssignedWorkerIdOrderByDateAscTimeAsc(workerId);
+        return allAssigned.stream()
+            .filter(p -> p.getDate().compareTo(today) < 0 && !List.of("COMPLETED", "CANCELLED", "RESCHEDULED").contains(p.getStatus()))
+            .collect(Collectors.toList());
     }
 }

@@ -7,7 +7,7 @@ import com.ewaste.ewaste_backend.repository.UserRepository;
 import com.ewaste.ewaste_backend.service.JwtService;
 import com.ewaste.ewaste_backend.util.TableCreator;
 import com.ewaste.ewaste_backend.service.UserAuthService; // Import UserAuthService
-import com.ewaste.ewaste_backend.service.GoMapsProService; // Import GoMapsProService
+// removed unused GoMapsProService import
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
-import java.util.Map; // For Map.of()
+// removed unused Map import
 
 @RestController
 @RequestMapping("/api")
@@ -46,8 +46,7 @@ public class AuthController {
     @Autowired
     private UserAuthService userAuthService; // Use the service for registration/profile updates
 
-    @Autowired
-    private GoMapsProService goMapsProService; // Inject GoMapsProService
+    // GoMapsProService no longer used here
 
     @GetMapping("/user/{id}")
     public ResponseEntity<User> getUser(@PathVariable Long id) {
@@ -55,6 +54,11 @@ public class AuthController {
         Optional<User> userOptional = userAuthService.getUserProfileById(id);
         return userOptional.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
+    @GetMapping("/encode")
+public String encode() {
+    return passwordEncoder.encode("admin123");
+}
+
 
     @PostMapping("/register")
     public ResponseEntity<String> registerUser(@RequestBody User user) {
@@ -89,6 +93,9 @@ public class AuthController {
 
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
+            // Determine role: user, worker, or admin
+            // username available if needed for auditing
+
             Optional<User> userOpt;
             if (identifier.contains("@")) {
                 userOpt = userRepository.findByEmail(identifier);
@@ -104,10 +111,16 @@ public class AuthController {
                 }
                 String token = jwtService.generateToken(userDetails);
                 return ResponseEntity.ok(new LoginResponse("Login successful", user.getId(), token, user.getRole().toLowerCase()));
-            } else {
-                // This case should ideally not be reached if authenticationManager.authenticate passes
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new LoginResponse("User not found after authentication", null, null, null));
             }
+
+            // If not a regular user, check if worker or admin; for worker, WorkerAuthController handles login separately.
+            // For admin, we accept requestedRole 'admin' and return token with role 'admin'.
+            if ("admin".equalsIgnoreCase(requestedRole)) {
+                String token = jwtService.generateToken(userDetails);
+                return ResponseEntity.ok(new LoginResponse("Login successful", null, token, "admin"));
+            }
+
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new LoginResponse("Account not found after authentication", null, null, null));
 
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new LoginResponse("Invalid credentials", null, null, null));
@@ -121,7 +134,7 @@ public class AuthController {
     @PutMapping("/user/profile/{userId}")
     public ResponseEntity<String> updateUserProfile(@PathVariable Long userId, @RequestBody User userUpdates) {
         try {
-            User updatedUser = userAuthService.updateUserProfile(userId, userUpdates);
+            userAuthService.updateUserProfile(userId, userUpdates);
             return ResponseEntity.ok("User profile updated successfully.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());

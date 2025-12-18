@@ -2,19 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import './Pickup.css';
 import api from '../services/api';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => {
-      resolve(true);
-    };
-    script.onerror = () => {
-      resolve(false);
-    };
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
 };
@@ -36,12 +31,15 @@ function Pickup() {
     email: '',
     image: null,
     wasteType: '',
+    latitude: null,
+    longitude: null,
   });
 
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
   const [dailyPickupCounts, setDailyPickupCounts] = useState({});
+  const [analysisResult, setAnalysisResult] = useState(null);
   const MAX_PICKUPS_PER_DAY = 5;
   const FIXED_PICKUP_PRICE_RUPEES = 40;
   const RAZORPAY_KEY_ID = 'rzp_test_bx3dOuw8U5uwJ3';
@@ -145,13 +143,7 @@ function Pickup() {
       fetchLocation();
     }, 500);
     return () => clearTimeout(debounceTimeout);
-  }, [formData.pincode]);
-
-  const getTodayDate = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
-  };
+  }, [formData.pincode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -188,8 +180,17 @@ function Pickup() {
     submitFormData.append('email', formData.email);
     submitFormData.append('wasteType', formData.wasteType);
     submitFormData.append('status', localStorage.getItem('userRole') === 'charity' ? 'Pending' : 'Paid - Pending Pickup');
+    if (formData.latitude) submitFormData.append('latitude', formData.latitude);
+    if (formData.longitude) submitFormData.append('longitude', formData.longitude);
     if (formData.image) {
       submitFormData.append('image', formData.image);
+    }
+
+    // Add analysis results if available
+    if (analysisResult) {
+      if (analysisResult.brand) submitFormData.append('brand', analysisResult.brand);
+      if (analysisResult.totalEstimatedValue) submitFormData.append('estimatedValue', analysisResult.totalEstimatedValue);
+      if (analysisResult.detectedItem) submitFormData.append('itemDetails', analysisResult.detectedItem);
     }
 
     try {
@@ -212,18 +213,15 @@ function Pickup() {
       }
     } catch (err) {
       console.error('Error submitting pickup details:', err);
-      if (
-        err.response &&
-        err.response.data &&
-        err.response.data.message &&
-        err.response.data.message.includes("Data too long for column 'status'")
-      ) {
-        alert('Failed to schedule pickup: The status field might be too long. Please inform the administrator.');
-      } else if (err.response && err.response.data && err.response.data.message) {
-        alert('Error occurred while scheduling pickup: ' + err.response.data.message);
-      } else {
-        alert('Error occurred while scheduling pickup. Please try again.');
+      let errorMessage = 'Error occurred while scheduling pickup. Please try again.';
+      if (err.response) {
+        if (err.response.data && err.response.data.message) {
+          errorMessage = 'Error occurred while scheduling pickup: ' + err.response.data.message;
+        } else {
+          errorMessage = 'Error occurred while scheduling pickup: ' + (err.response.statusText || 'Unknown server error.');
+        }
       }
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -346,12 +344,6 @@ function Pickup() {
     }
   };
 
-  const isDateDisabled = (date) => {
-    const dateString = date.toISOString().split('T')[0];
-    const count = dailyPickupCounts[dateString] || 0;
-    return count >= MAX_PICKUPS_PER_DAY;
-  };
-
   const highlightDates = (date) => {
     const dateString = date.toISOString().split('T')[0];
     const count = dailyPickupCounts[dateString] || 0;
@@ -359,223 +351,424 @@ function Pickup() {
   };
 
   return (
-    <div className="pickup-wrapper bg-gray-100 min-h-screen flex items-center justify-center p-4">
-      <div className="pickup-form-container bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl">
-        <h2 className="text-3xl font-bold text-green-700 mb-6 text-center">Schedule E-Waste Pickup</h2>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* User Details (pre-filled) */}
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Name:
-            </label>
-            <input
-              type="text"
-              name="schedulerName"
-              value={formData.schedulerName}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              required
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Email:
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              required
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Phone:
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              required
-              disabled={loading}
-            />
-          </div>
-
-          {/* Pickup Details */}
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Pickup Address:
-            </label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="Enter full address"
-              required
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Pincode:
-            </label>
-            <input
-              type="text"
-              name="pincode"
-              value={formData.pincode}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="Enter 6-digit pincode"
-              maxLength="6"
-              required
-              disabled={loading}
-            />
-            {pincodeError && <p className="text-red-500 text-xs italic mt-1">{pincodeError}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2">
-                City:
-              </label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-100"
-                required
-                disabled={true} // Auto-filled
-              />
-            </div>
-            <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2">
-                State:
-              </label>
-              <input
-                type="text"
-                name="state"
-                value={formData.state}
-                onChange={handleChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-100"
-                required
-                disabled={true} // Auto-filled
-              />
+    <div className="bg-gradient-to-br from-gray-50 via-white to-green-50 min-h-screen flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-4xl">
+        <div className="text-center mb-8">
+          <h2 className="text-4xl font-bold text-gray-900 mb-2">
+            Schedule <span className="text-green-600">E-Waste Pickup</span>
+          </h2>
+          <p className="text-gray-600 text-lg">
+            Help us create a sustainable future by properly disposing of your electronic waste
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Personal Information Section */}
+          <div className="bg-gray-50 p-6 rounded-2xl">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="mr-2">👤</span>
+              Personal Information
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Full Name</label>
+                <input
+                  type="text"
+                  name="schedulerName"
+                  value={formData.schedulerName}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
+                  placeholder="Enter your full name"
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
+                  placeholder="Enter your email"
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Phone Number</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
+                  placeholder="Enter your phone number"
+                  required
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2">
-                Preferred Pickup Date:
-              </label>
-              <DatePicker
-                selected={formData.date}
-                onChange={handleDateChange}
-                minDate={new Date()}
-                filterDate={(date) => date.getDay() !== 0}
-                dayClassName={highlightDates}
-                dateFormat="yyyy-MM-dd"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                placeholderText="Select a date"
-                required
-                disabled={loading}
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                <span className="text-red-500">Red dates</span> are fully booked.
-              </p>
+          {/* Address Information Section */}
+          <div className="bg-blue-50 p-6 rounded-2xl">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="mr-2">📍</span>
+              Pickup Address
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Full Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
+                  placeholder="Enter complete pickup address"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      setLoading(true);
+                      navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                          const { latitude, longitude } = position.coords;
+                          setFormData((prev) => ({
+                            ...prev,
+                            latitude,
+                            longitude
+                          }));
+
+                          // Optional: Reverse geocoding to fill address details
+                          try {
+                            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                            const data = await response.json();
+                            if (data && data.address) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                latitude,
+                                longitude,
+                                address: data.display_name || prev.address,
+                                pincode: data.address.postcode || prev.pincode,
+                                city: data.address.city || data.address.town || prev.city,
+                                state: data.address.state || prev.state
+                              }));
+                            }
+                          } catch (error) {
+                            console.error("Reverse geocoding failed", error);
+                          } finally {
+                            setLoading(false);
+                          }
+                          alert("Location fetched successfully!");
+                        },
+                        (error) => {
+                          console.error("Error getting location", error);
+                          alert("Failed to get location. Please allow location access.");
+                          setLoading(false);
+                        }
+                      );
+                    } else {
+                      alert("Geolocation is not supported by this browser.");
+                    }
+                  }}
+                  className="mt-2 text-sm text-green-600 hover:text-green-800 font-semibold focus:outline-none"
+                >
+                  📍 Use Current Location
+                </button>
+              </div>
+              <div>
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Pincode</label>
+                <input
+                  type="text"
+                  name="pincode"
+                  value={formData.pincode}
+                  onChange={handleChange}
+                  className={`w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200 ${pincodeError ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                  placeholder="Enter 6-digit pincode"
+                  maxLength="6"
+                  required
+                  disabled={loading}
+                />
+                {pincodeError && (
+                  <p className="text-red-500 text-sm mt-1 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {pincodeError}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 text-sm font-semibold mb-2">City</label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
+                    required
+                    disabled={true}
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 text-sm font-semibold mb-2">State</label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
+                    required
+                    disabled={true}
+                  />
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Schedule Information Section */}
+          <div className="bg-green-50 p-6 rounded-2xl">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="mr-2">📅</span>
+              Pickup Schedule
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Preferred Pickup Date</label>
+                <DatePicker
+                  selected={formData.date}
+                  onChange={handleDateChange}
+                  minDate={new Date()}
+                  filterDate={(date) => date.getDay() !== 0}
+                  dayClassName={highlightDates}
+                  dateFormat="yyyy-MM-dd"
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
+                  placeholderText="Select a date"
+                  required
+                  disabled={loading}
+                />
+                <p className="text-sm text-gray-500 mt-2 flex items-center">
+                  <span className="text-red-500 mr-1">🔴</span>
+                  Red dates are fully booked
+                </p>
+              </div>
+              <div>
+                <label className="block text-gray-700 text-sm font-semibold mb-2">Preferred Pickup Time</label>
+                <select
+                  name="time"
+                  value={formData.time}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Select Time Slot</option>
+                  <option value="09:00-12:00">🌅 09:00 AM - 12:00 PM</option>
+                  <option value="12:00-15:00">☀️ 12:00 PM - 03:00 PM</option>
+                  <option value="15:00-18:00">🌆 03:00 PM - 06:00 PM</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* E-Waste Type Section */}
+          <div className="bg-purple-50 p-6 rounded-2xl">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="mr-2">♻️</span>
+              E-Waste Type
+            </h3>
             <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2">
-                Preferred Pickup Time:
-              </label>
+              <label className="block text-gray-700 text-sm font-semibold mb-2">Select Type of E-Waste</label>
               <select
-                name="time"
-                value={formData.time}
+                name="wasteType"
+                value={formData.wasteType}
                 onChange={handleChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-200"
                 required
                 disabled={loading}
               >
-                <option value="">Select Time</option>
-                <option value="09:00-12:00">09:00 AM - 12:00 PM</option>
-                <option value="12:00-15:00">12:00 PM - 03:00 PM</option>
-                <option value="15:00-18:00">03:00 PM - 06:00 PM</option>
+                <option value="">Choose waste type</option>
+                <option value="Computers_Laptops">💻 Computers & Laptops</option>
+                <option value="Monitors_TVs">📺 Monitors & TVs (CRT, LCD, LED)</option>
+                <option value="Mobile_Phones_Tablets">📱 Mobile Phones & Tablets</option>
+                <option value="Printers_Scanners_Copiers">🖨️ Printers, Scanners & Copiers</option>
+                <option value="Networking_Equipment">🌐 Networking Equipment (Routers, Modems)</option>
+                <option value="Servers_Data_Center_Equipment">🖥️ Servers & Data Center Equipment</option>
+                <option value="Batteries">🔋 Batteries (Li-ion, NiCad, Lead-acid)</option>
+                <option value="Cables_Wires">🔌 Cables & Wires</option>
+                <option value="Small_Home_Appliances">🏠 Small Home Appliances (Toasters, Kettles)</option>
+                <option value="Large_Home_Appliances">🏠 Large Home Appliances (Refrigerators, Washing Machines)</option>
+                <option value="Audio_Video_Equipment">🎵 Audio & Video Equipment (Stereos, DVDs)</option>
+                <option value="Gaming_Consoles">🎮 Gaming Consoles</option>
+                <option value="Medical_Equipment">🏥 Medical Equipment (Non-Hazardous E-waste)</option>
+                <option value="Lab_Equipment">🧪 Laboratory Equipment (Non-Hazardous E-waste)</option>
+                <option value="Other">❓ Other (Please specify)</option>
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Type of E-Waste:
-            </label>
-            <select
-              name="wasteType"
-              value={formData.wasteType}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              required
+          {/* Image Upload Section */}
+          <div className="bg-yellow-50 p-6 rounded-2xl">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="mr-2">📸</span>
+              Upload Item Image
+            </h3>
+            <div>
+              <label className="block text-gray-700 text-sm font-semibold mb-2">Upload Image of E-Waste Item</label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-green-400 transition duration-200">
+                <input
+                  type="file"
+                  name="image"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  ref={fileInputRef}
+                  className="hidden"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading}
+                >
+                  📁 Choose Image
+                </button>
+                <p className="text-gray-500 text-sm mt-2">
+                  Upload a clear image of the e-waste item for better processing
+                </p>
+              </div>
+              {imagePreview && (
+                <div className="mt-4 text-center">
+                  <img
+                    src={imagePreview}
+                    alt="Waste Item Preview"
+                    className="max-h-48 rounded-lg shadow-md mx-auto border-2 border-gray-200"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">Preview of uploaded image</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+
+          {/* AI Analysis Section */}
+          <div className="bg-indigo-50 p-6 rounded-2xl">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="mr-2">🤖</span>
+              AI Waste Analysis
+            </h3>
+            <div className="text-center">
+              {!formData.image ? (
+                <p className="text-gray-500">Upload an image above to enable AI analysis.</p>
+              ) : (
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!formData.image) return;
+                      setLoading(true);
+                      try {
+                        const analysisFormData = new FormData();
+                        analysisFormData.append('image', formData.image);
+                        const res = await api.post('/api/waste/analyze', analysisFormData, {
+                          headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                        setAnalysisResult(res.data);
+                      } catch (err) {
+                        console.error("Analysis failed", err);
+                        alert("Failed to analyze image. Please try again.");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition duration-200 disabled:opacity-50"
+                    disabled={loading}
+                  >
+                    {loading ? 'Analyzing...' : '🔍 Analyze Image'}
+                  </button>
+
+                  {analysisResult && (
+                    <div className="mt-4 bg-white p-4 rounded-xl shadow-md text-left">
+                      <h4 className="font-bold text-lg text-gray-800 mb-2">Analysis Result:</h4>
+                      <p className="text-gray-700 mb-1"><strong>Brand:</strong> {analysisResult.brand}</p>
+                      <p className="text-gray-700 mb-2"><strong>Detected Item:</strong> {analysisResult.detectedItem} <span className="text-sm text-gray-500">({(analysisResult.confidence * 100).toFixed(1)}% confidence)</span></p>
+
+                      <h5 className="font-semibold text-gray-700 mb-2">Recyclable Elements:</h5>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Element</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight (g)</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Value (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {analysisResult.elements.map((el, idx) => (
+                              <tr key={idx}>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{el.name}</td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">{el.weightGrams.toFixed(2)}</td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">₹{el.value.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50">
+                            <tr>
+                              <td colSpan="2" className="px-3 py-2 text-right font-bold text-gray-900">Total Estimated Value:</td>
+                              <td className="px-3 py-2 font-bold text-green-600">₹{analysisResult.totalEstimatedValue.toFixed(2)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 italic">* Values are estimates based on market rates.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="text-center">
+            <button
+              type="submit"
+              className={`w-full text-white font-bold py-4 px-8 rounded-xl text-lg shadow-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${loading
+                ? 'bg-gray-400 cursor-not-allowed'
+                : localStorage.getItem('userRole') === 'charity'
+                  ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                }`}
               disabled={loading}
             >
-              <option value="">Select Waste Type</option>
-              <option value="Computers_Laptops">Computers & Laptops</option>
-              <option value="Monitors_TVs">Monitors & TVs (CRT, LCD, LED)</option>
-              <option value="Mobile_Phones_Tablets">Mobile Phones & Tablets</option>
-              <option value="Printers_Scanners_Copiers">Printers, Scanners & Copiers</option>
-              <option value="Networking_Equipment">Networking Equipment (Routers, Modems)</option>
-              <option value="Servers_Data_Center_Equipment">Servers & Data Center Equipment</option>
-              <option value="Batteries">Batteries (Li-ion, NiCad, Lead-acid)</option>
-              <option value="Cables_Wires">Cables & Wires</option>
-              <option value="Small_Home_Appliances">Small Home Appliances (Toasters, Kettles)</option>
-              <option value="Large_Home_Appliances">Large Home Appliances (Refrigerators, Washing Machines)</option>
-              <option value="Audio_Video_Equipment">Audio & Video Equipment (Stereos, DVDs)</option>
-              <option value="Gaming_Consoles">Gaming Consoles</option>
-              <option value="Medical_Equipment">Medical Equipment (Non-Hazardous E-waste)</option>
-              <option value="Lab_Equipment">Laboratory Equipment (Non-Hazardous E-waste)</option>
-              <option value="Other">Other (Please specify)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Upload Image of Item:
-            </label>
-            <input
-              type="file"
-              name="image"
-              accept="image/*"
-              onChange={handleImageChange}
-              ref={fileInputRef}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-green-50 file:text-green-700
-                hover:file:bg-green-100"
-              required
-              disabled={loading}
-            />
-            {imagePreview && (
-              <div className="mt-4">
-                <img src={imagePreview} alt="Waste Item Preview" className="max-h-48 rounded shadow-md" />
-              </div>
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Processing...
+                </div>
+              ) : (
+                <div className="flex items-center justify-center">
+                  <span className="mr-2">
+                    {localStorage.getItem('userRole') === 'charity' ? '♻️' : '💳'}
+                  </span>
+                  {localStorage.getItem('userRole') === 'charity'
+                    ? 'Schedule Free Pickup'
+                    : `Proceed to Payment (₹${FIXED_PICKUP_PRICE_RUPEES})`
+                  }
+                </div>
+              )}
+            </button>
+            {localStorage.getItem('userRole') !== 'charity' && (
+              <p className="text-sm text-gray-500 mt-2">
+                Secure payment powered by Razorpay
+              </p>
             )}
           </div>
-
-          <button
-            type="submit"
-            className={`w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={loading}
-          >
-            {loading ? 'Processing...' : (localStorage.getItem('userRole') === 'charity' ? 'Schedule Free Pickup' : `Proceed to Payment (₹${FIXED_PICKUP_PRICE_RUPEES})`)}
-          </button>
         </form>
       </div>
     </div>

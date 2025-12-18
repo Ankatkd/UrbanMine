@@ -1,0 +1,39 @@
+﻿[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< com.ewaste:ewaste-backend >----------------------
+[INFO] Building ewaste-backend 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.4.1:clean (default-clean) @ ewaste-backend ---
+[INFO] Deleting C:\Users\ankao\OneDrive\Desktop\React\Ewaste_Final (2)\Ewaste_Final\backend\target
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ ewaste-backend ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ ewaste-backend ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 52 source files with javac [debug parameters release 17] to target\classes
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /C:/Users/ankao/OneDrive/Desktop/React/Ewaste_Final (2)/Ewaste_Final/backend/src/main/java/com/ewaste/ewaste_backend/controller/WorkerController.java:[243,9] 'try' without 'catch', 'finally' or resource declarations
+[INFO] 1 error
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.205 s
+[INFO] Finished at: 2025-12-16T13:40:52+05:30
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.13.0:compile (default-compile) on project ewaste-backend: Compilation failure
+[ERROR] /C:/Users/ankao/OneDrive/Desktop/React/Ewaste_Final (2)/Ewaste_Final/backend/src/main/java/com/ewaste/ewaste_backend/controller/WorkerController.java:[243,9] 'try' without 'catch', 'finally' or resource declarations
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

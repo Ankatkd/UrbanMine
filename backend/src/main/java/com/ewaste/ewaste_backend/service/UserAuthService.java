@@ -4,6 +4,8 @@ import com.ewaste.ewaste_backend.model.User;
 import com.ewaste.ewaste_backend.model.Worker;
 import com.ewaste.ewaste_backend.repository.UserRepository;
 import com.ewaste.ewaste_backend.repository.WorkerRepository;
+import com.ewaste.ewaste_backend.repository.AdminTableRepository;
+import com.ewaste.ewaste_backend.model.Admin;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -27,6 +29,9 @@ public class UserAuthService implements UserDetailsService {
 
     @Autowired
     private GoMapsProService goMapsProService;
+
+    @Autowired
+    private AdminTableRepository adminTableRepository;
 
     @Override
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
@@ -58,7 +63,17 @@ public class UserAuthService implements UserDetailsService {
             );
         }
 
-        throw new UsernameNotFoundException("User or Worker not found with identifier: " + identifier);
+        Optional<Admin> adminOptional = adminTableRepository.findByEmailId(identifier);
+        if (adminOptional.isPresent()) {
+            Admin admin = adminOptional.get();
+            return new org.springframework.security.core.userdetails.User(
+                admin.getEmailId(),
+                admin.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN"))
+            );
+        }
+
+        throw new UsernameNotFoundException("User, Worker, or Admin not found with identifier: " + identifier);
     }
 
     @Transactional
@@ -72,14 +87,16 @@ public class UserAuthService implements UserDetailsService {
             throw new IllegalArgumentException("User with this phone number already exists.");
         }
 
-        String fullAddressToGeocode = user.getLocation() + ", " + user.getCity() + ", " + user.getPincode();
-        Optional<double[]> coords = goMapsProService.geocodeAddress(fullAddressToGeocode);
+        if (user.getLatitude() == null || user.getLongitude() == null) {
+            String fullAddressToGeocode = user.getLocation() + ", " + user.getCity() + ", " + user.getPincode();
+            Optional<double[]> coords = goMapsProService.geocodeAddress(fullAddressToGeocode);
 
-        if (coords.isPresent()) {
-            user.setLatitude(coords.get()[0]);
-            user.setLongitude(coords.get()[1]);
-        } else {
-            throw new IllegalArgumentException("Failed to determine geographical coordinates for the provided location. Please refine the address.");
+            if (coords.isPresent()) {
+                user.setLatitude(coords.get()[0]);
+                user.setLongitude(coords.get()[1]);
+            } else {
+                throw new IllegalArgumentException("Failed to determine geographical coordinates for the provided location. Please refine the address.");
+            }
         }
 
         return userRepository.save(user);

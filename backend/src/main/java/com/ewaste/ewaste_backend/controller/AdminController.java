@@ -1,126 +1,127 @@
 package com.ewaste.ewaste_backend.controller;
 
-import com.ewaste.ewaste_backend.model.PickupRequest;
-import com.ewaste.ewaste_backend.model.User;
-import com.ewaste.ewaste_backend.model.Worker;
-import com.ewaste.ewaste_backend.repository.PickupRequestRepository;
-import com.ewaste.ewaste_backend.service.PickupRequestService;
-import com.ewaste.ewaste_backend.service.UserService;
-import com.ewaste.ewaste_backend.service.WorkerService;
-
+import com.ewaste.ewaste_backend.model.Employee;
+import com.ewaste.ewaste_backend.service.AdminService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/admin")
-@PreAuthorize("hasAuthority('ADMIN')") // Only ADMIN role can access these endpoints
-@CrossOrigin
+@PreAuthorize("hasAuthority('ADMIN')")
+@CrossOrigin(origins = "http://localhost:3000")
 public class AdminController {
 
     @Autowired
-    private UserService userService;
+    private AdminService adminService;
 
-    @Autowired
-    private WorkerService workerService;
-
-    @Autowired
-    private PickupRequestService pickupRequestService;
-
-    @Autowired
-    private PickupRequestRepository pickupRequestRepository; // Injecting repository for direct query
-
-    @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userService.getAllUsers();
-        // Remove passwords before sending to frontend
-        users.forEach(user -> user.setPassword(null));
-        return ResponseEntity.ok(users);
+    // Employee CRUD
+    @GetMapping("/employees")
+    public ResponseEntity<List<Employee>> getAllEmployees() {
+        return ResponseEntity.ok(adminService.getAllEmployees());
     }
 
-    @GetMapping("/workers")
-    public ResponseEntity<List<Worker>> getAllWorkers() {
-        List<Worker> workers = workerService.getAllWorkers();
-        // Remove passwords before sending to frontend
-        workers.forEach(worker -> worker.setPassword(null));
-        return ResponseEntity.ok(workers);
+    @PostMapping("/employees")
+    public ResponseEntity<Employee> createEmployee(@RequestBody Employee employee) {
+        return ResponseEntity.ok(adminService.createEmployee(employee));
     }
 
-    @GetMapping("/pickups")
-    public ResponseEntity<List<PickupRequest>> getAllPickups() {
-        List<PickupRequest> pickups = pickupRequestService.getAllPickupRequests();
-        return ResponseEntity.ok(pickups);
+    @PutMapping("/employees/{id}")
+    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @RequestBody Employee employee) {
+        return ResponseEntity.ok(adminService.updateEmployee(id, employee));
     }
 
-    // FIXED: Endpoint to get pickups by status (now correctly calls findByStatus)
-    @GetMapping("/pickups/status/{status}")
-    public ResponseEntity<List<PickupRequest>> getPickupsByStatus(@PathVariable String status) {
-        // Using the newly added findByStatus method in repository
-        List<PickupRequest> pickups = pickupRequestRepository.findByStatus(status);
-        return ResponseEntity.ok(pickups);
+    @DeleteMapping("/employees/{id}")
+    public ResponseEntity<Void> deleteEmployee(@PathVariable Long id) {
+        adminService.deleteEmployee(id);
+        return ResponseEntity.noContent().build();
     }
 
-    // Endpoint to manually assign a pickup to a worker by admin
-    @PostMapping("/pickups/{requestId}/assign/{workerId}")
-    public ResponseEntity<PickupRequest> assignPickupAdmin(
-            @PathVariable Long requestId,
-            @PathVariable Long workerId) {
-        try {
-            // Validate worker exists
-            Optional<Worker> workerOptional = workerService.findWorkerById(workerId);
-            if (workerOptional.isEmpty()) {
-                return ResponseEntity.badRequest().body(null); // Or custom error response
-            }
+    // Analytics Summary
+    @GetMapping("/analytics/summary")
+    public ResponseEntity<Map<String, Object>> getSummary() {
+        return ResponseEntity.ok(adminService.buildSummaryAnalytics());
+    }
 
-            // Call service method to assign, passing the specific workerId
-            PickupRequest assignedPickup = pickupRequestService.assignWorkerToPickupRequest(requestId, workerId);
-            return ResponseEntity.ok(assignedPickup);
-        } catch (RuntimeException e) {
-            // Provide a more descriptive error message
-            return ResponseEntity.badRequest().body(null); // Handle specific exceptions
+    // Reports JSON
+    @GetMapping("/reports/hired")
+    public ResponseEntity<List<Employee>> reportHiredBetween(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        return ResponseEntity.ok(adminService.reportByDateRange(start, end));
+    }
+
+    @GetMapping("/reports/by-project")
+    public ResponseEntity<List<Employee>> reportByProject(@RequestParam String project) {
+        return ResponseEntity.ok(adminService.reportByProject(project));
+    }
+
+    @GetMapping("/reports/by-status")
+    public ResponseEntity<List<Employee>> reportByStatus(@RequestParam String status) {
+        return ResponseEntity.ok(adminService.reportByStatus(status));
+    }
+
+    // CSV export helpers
+    private String toCsv(List<Employee> employees) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("id,name,email,role,department,project,status,dateHired,salary\n");
+        for (Employee e : employees) {
+            sb.append(e.getId()).append(',')
+              .append(escapeCsv(e.getName())).append(',')
+              .append(escapeCsv(e.getEmail())).append(',')
+              .append(escapeCsv(e.getRole())).append(',')
+              .append(escapeCsv(e.getDepartment())).append(',')
+              .append(escapeCsv(e.getProject())).append(',')
+              .append(escapeCsv(e.getStatus())).append(',')
+              .append(e.getDateHired() != null ? e.getDateHired() : "").append(',')
+              .append(e.getSalary() != null ? e.getSalary() : "")
+              .append('\n');
         }
+        return sb.toString();
     }
 
-    // Endpoint to update pickup status by admin (e.g., if re-assigning or correcting status)
-    @PutMapping("/pickups/{requestId}/status")
-    public ResponseEntity<PickupRequest> updatePickupStatusAdmin(
-            @PathVariable Long requestId,
-            @RequestBody Map<String, String> payload) {
-        try {
-            String status = payload.get("status");
-            if (status == null || status.isEmpty()) {
-                return ResponseEntity.badRequest().body(null);
-            }
-
-            PickupRequest existingRequest = pickupRequestService.getPickupRequestById(requestId);
-            if (existingRequest == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            String oldStatus = existingRequest.getStatus();
-            existingRequest.setStatus(status);
-
-            PickupRequest updatedRequest = pickupRequestRepository.save(existingRequest);
-            return ResponseEntity.ok(updatedRequest);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().build();
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        String v = value.replace("\"", "\"\"");
+        if (v.contains(",") || v.contains("\n") || v.contains("\r")) {
+            return "\"" + v + "\"";
         }
+        return v;
     }
 
-    @DeleteMapping("/pickups/{requestId}")
-    public ResponseEntity<Void> deletePickupRequest(@PathVariable Long requestId) {
-        try {
-            pickupRequestRepository.deleteById(requestId);
-            return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().build();
-        }
+    private ResponseEntity<byte[]> csvResponse(String filename, List<Employee> data) {
+        String csv = toCsv(data);
+        byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(bytes);
+    }
+
+    // CSV downloads
+    @GetMapping("/reports/hired.csv")
+    public ResponseEntity<byte[]> downloadHiredCsv(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        return csvResponse("hired.csv", adminService.reportByDateRange(start, end));
+    }
+
+    @GetMapping("/reports/by-project.csv")
+    public ResponseEntity<byte[]> downloadByProjectCsv(@RequestParam String project) {
+        return csvResponse("by-project.csv", adminService.reportByProject(project));
+    }
+
+    @GetMapping("/reports/by-status.csv")
+    public ResponseEntity<byte[]> downloadByStatusCsv(@RequestParam String status) {
+        return csvResponse("by-status.csv", adminService.reportByStatus(status));
     }
 }

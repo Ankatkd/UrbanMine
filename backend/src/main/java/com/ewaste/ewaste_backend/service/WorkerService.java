@@ -6,6 +6,7 @@ import com.ewaste.ewaste_backend.repository.WorkerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,8 +20,27 @@ public class WorkerService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private GoMapsProService goMapsProService;
+
+    @Transactional
     public Worker registerWorker(Worker worker) {
+        // Encode password
         worker.setPassword(passwordEncoder.encode(worker.getPassword()));
+        
+        // Geocode only if coordinates are not provided
+        if (worker.getLatitude() == null || worker.getLongitude() == null) {
+            String fullAddressToGeocode = worker.getLocation() + ", " + worker.getCity() + ", " + worker.getPincode();
+            Optional<double[]> coords = goMapsProService.geocodeAddress(fullAddressToGeocode);
+            
+            if (coords.isPresent()) {
+                worker.setLatitude(coords.get()[0]);
+                worker.setLongitude(coords.get()[1]);
+            } else {
+                throw new IllegalArgumentException("Failed to determine geographical coordinates for the provided location. Please refine the address.");
+            }
+        }
+        
         return workerRepository.save(worker);
     }
 

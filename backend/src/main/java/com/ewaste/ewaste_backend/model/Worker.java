@@ -21,6 +21,14 @@ public class Worker {
     private String email;
     private String city;
     private String pincode;
+    private String location;
+    private String aadhar;
+    
+    @Column(name = "latitude")
+    private Double latitude;
+    
+    @Column(name = "longitude")
+    private Double longitude;
 
     private String role = "WORKER";
 
@@ -48,6 +56,24 @@ public class Worker {
     public String getPincode() { return pincode; }
     public void setPincode(String pincode) { this.pincode = pincode; }
 
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
+
+    public String getAadhar() { return aadhar; }
+    public void setAadhar(String aadhar) { this.aadhar = aadhar; }
+
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
+
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
+
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+
+    @Column(name = "availability")
+    private Boolean availability = true;
+
+    public Boolean getAvailability() { return availability; }
+    public void setAvailability(Boolean availability) { this.availability = availability; }
 }

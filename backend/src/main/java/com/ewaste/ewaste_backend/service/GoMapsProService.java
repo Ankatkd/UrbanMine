@@ -25,7 +25,7 @@ public class GoMapsProService {
     public Optional<double[]> geocodeAddress(String address) {
         // TODO: Implement actual geocoding logic here.
         // This will typically involve calling a third-party geocoding API
-        // (e.g., Google Geocoding API, OpenStreetMap Nominatim, etc.).
+        // (e.g., GoMaps Pro Geocoding API).
         System.out.println("GoMapsProService: Geocoding address: " + address);
 
         // Placeholder for demonstration:
@@ -43,16 +43,16 @@ public class GoMapsProService {
             } else if (lowerCaseAddress.contains("mumbai")) {
                 latitude = 19.0760;
                 longitude = 72.8777;
-            } else if (lowerCaseAddress.contains("chembur")) { // Example: A more specific address within Mumbai
-                latitude = 19.0558; // Approx Chembur coordinates
+            } else if (lowerCaseAddress.contains("chembur")) {
+                latitude = 19.0558;
                 longitude = 72.9097;
-            } else if (lowerCaseAddress.contains("lohegaon")) { // Example: A more specific address within Pune
-                latitude = 18.5835; // Approx Lohegaon coordinates
+            } else if (lowerCaseAddress.contains("lohegaon")) {
+                latitude = 18.5835;
                 longitude = 73.9142;
             }
             else {
                 System.out.println("GoMapsProService: No specific dummy coordinates for address: " + address + ". Returning empty Optional.");
-                return Optional.empty(); // Return empty if no coordinates found
+                return Optional.empty();
             }
             return Optional.of(new double[]{latitude, longitude});
         } else {

@@ -18,6 +18,8 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, Lo
 
     List<PickupRequest> findByAssignedWorkerIdOrderByDateAscTimeAsc(Long assignedWorkerId);
 
+    List<PickupRequest> findByAssignedWorkerId(Long assignedWorkerId);
+
     List<PickupRequest> findByAssignedWorkerIdAndDateAndStatus(Long assignedWorkerId, String date, String status);
 
     List<PickupRequest> findByAssignedWorkerIdIsNullAndStatusIn(List<String> statuses);

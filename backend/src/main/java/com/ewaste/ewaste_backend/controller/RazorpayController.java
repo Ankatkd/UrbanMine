@@ -4,6 +4,7 @@ import com.ewaste.ewaste_backend.model.PickupRequest;
 import com.ewaste.ewaste_backend.model.User;
 import com.ewaste.ewaste_backend.repository.PickupRequestRepository;
 import com.ewaste.ewaste_backend.repository.UserRepository;
+import com.ewaste.ewaste_backend.service.PickupRequestService;
 import com.ewaste.ewaste_backend.util.TableCreator;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
@@ -15,8 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,7 +31,7 @@ public class RazorpayController {
     private String razorpaySecret;
 
     @Autowired
-    private PickupRequestRepository pickupRequestRepository;
+    private PickupRequestService pickupRequestService;
 
     @Autowired
     private UserRepository userRepository;
@@ -106,7 +105,7 @@ public class RazorpayController {
                 request.setImageData(imageData);
             }
 
-            pickupRequestRepository.save(request);
+            pickupRequestService.savePickupRequest(request);
 
             Long userIdLong = Long.parseLong(userId);
             Optional<User> userOptional = userRepository.findById(userIdLong);

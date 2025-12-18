@@ -23,6 +23,10 @@ class PickupStatusUpdateDTO {
     private Double collectedKgs;
     private String notes;
 
+    private String brand;
+    private String itemDetails;
+    private Double estimatedValue;
+
     public String getStatus() {
         return status;
     }
@@ -46,7 +50,26 @@ class PickupStatusUpdateDTO {
     public void setNotes(String notes) {
         this.notes = notes;
     }
+
+    public String getBrand() { return brand; }
+    public void setBrand(String brand) { this.brand = brand; }
+
+    public String getItemDetails() { return itemDetails; }
+    public void setItemDetails(String itemDetails) { this.itemDetails = itemDetails; }
+
+    public Double getEstimatedValue() { return estimatedValue; }
+    public void setEstimatedValue(Double estimatedValue) { this.estimatedValue = estimatedValue; }
 }
+
+class RescheduleDTO {
+    private String newDate;
+    private String reason;
+    public String getNewDate() { return newDate; }
+    public void setNewDate(String newDate) { this.newDate = newDate; }
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
+}
+
 
 @RestController
 @RequestMapping("/api/worker")
@@ -58,6 +81,9 @@ public class WorkerController {
 
     @Autowired
     private WorkerService workerService;
+
+    @Autowired
+    private com.ewaste.ewaste_backend.service.WasteAnalysisService wasteAnalysisService;
 
     private Optional<Worker> getAuthenticatedWorker() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -186,7 +212,10 @@ public class WorkerController {
                     updateDTO.getStatus(),
                     worker.getId(),
                     updateDTO.getCollectedKgs(),
-                    updateDTO.getNotes()
+                    updateDTO.getNotes(),
+                    updateDTO.getBrand(),
+                    updateDTO.getItemDetails(),
+                    updateDTO.getEstimatedValue()
             );
             return ResponseEntity.ok(updatedRequest);
 
@@ -220,6 +249,105 @@ public class WorkerController {
             Worker worker = workerOptional.get();
             List<PickupLog> logs = pickupRequestService.getPickupLogsByWorker(worker.getId());
             return ResponseEntity.ok(logs);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/pickups/missed")
+    public ResponseEntity<List<PickupRequest>> getMissedWorkerPickups() {
+        try {
+            Optional<Worker> workerOptional = getAuthenticatedWorker();
+            if (workerOptional.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.ok(pickupRequestService.getMissedPickupsForWorker(workerOptional.get().getId()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PutMapping("/pickups/{requestId}/reached")
+    public ResponseEntity<PickupRequest> markReached(@PathVariable Long requestId) {
+        try {
+            Optional<Worker> workerOptional = getAuthenticatedWorker();
+            if (workerOptional.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.ok(pickupRequestService.markReached(requestId, workerOptional.get().getId()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/pickups/{requestId}/reschedule")
+    public ResponseEntity<PickupRequest> reschedulePickup(@PathVariable Long requestId, @RequestBody RescheduleDTO dto) {
+        try {
+            Optional<Worker> workerOptional = getAuthenticatedWorker();
+            if (workerOptional.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.ok(pickupRequestService.reschedulePickup(requestId, workerOptional.get().getId(), dto.getNewDate(), dto.getReason()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/pickups/{requestId}/items")
+    public ResponseEntity<?> addPickupItem(@PathVariable Long requestId, 
+                                                     @RequestParam("images") org.springframework.web.multipart.MultipartFile[] images,
+                                                     @RequestParam(value = "brand", required = false) String brand,
+                                                     @RequestParam(value = "details", required = false) String details) {
+        try {
+             Optional<Worker> workerOptional = getAuthenticatedWorker();
+            if (workerOptional.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+            if (images == null || images.length == 0) {
+                 return ResponseEntity.badRequest().body("No images uploaded.");
+            }
+
+            // Primary image for AI analysis is the first one
+            org.springframework.web.multipart.MultipartFile primaryImage = images[0];
+            
+            // AI Analysis
+            java.util.Map<String, Object> analysis = wasteAnalysisService.analyzeWasteImage(primaryImage);
+            String aiBrand = (String) analysis.get("brand");
+            String aiItem = (String) analysis.getOrDefault("detectedItem", "Unknown");
+            double confidence = 0.0;
+             Object conf = analysis.get("confidence");
+             if (conf instanceof Number) {
+                confidence = ((Number) conf).doubleValue();
+            }
+
+            // Manual Override Check: If brand is provided manually and differs from AI, require > 1 image
+            if (brand != null && !brand.trim().isEmpty() && !brand.equalsIgnoreCase(aiBrand)) {
+                if (images.length < 2) {
+                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Manual Brand verification requires at least 2 images for confidence building.");
+                }
+            }
+            
+            com.ewaste.ewaste_backend.model.PickupItem item = new com.ewaste.ewaste_backend.model.PickupItem();
+            item.setImageData(primaryImage.getBytes()); // Main thumbnail
+            
+            // Add all images to ItemImage relationship
+            for (org.springframework.web.multipart.MultipartFile img : images) {
+                com.ewaste.ewaste_backend.model.ItemImage itemImage = new com.ewaste.ewaste_backend.model.ItemImage();
+                itemImage.setImageData(img.getBytes());
+                item.addImage(itemImage);
+            }
+
+            item.setWasteType(aiItem);
+            item.setBrand(brand != null ? brand : aiBrand);
+            item.setItemDetails(details != null ? details : "Added by Worker");
+            
+            Object val = analysis.get("totalEstimatedValue");
+             if (val instanceof Number) {
+                item.setEstimatedValue(((Number) val).doubleValue());
+            } else {
+                 item.setEstimatedValue(0.0);
+            }
+            
+            item.setAiConfidence(confidence);
+            item.setStatus("VERIFIED"); 
+
+            return ResponseEntity.ok(pickupRequestService.addPickupItem(requestId, item));
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

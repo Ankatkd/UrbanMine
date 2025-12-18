@@ -31,11 +31,18 @@ public class WorkerAuthController {
 
     @PostMapping("/register")
     public ResponseEntity<String> registerWorker(@RequestBody Worker worker) {
-        if (workerService.findWorkerByUsername(worker.getUsername()).isPresent()) {
-            return ResponseEntity.badRequest().body("Username already taken.");
+        try {
+            if (workerService.findWorkerByUsername(worker.getUsername()).isPresent()) {
+                return ResponseEntity.badRequest().body("Username already taken.");
+            }
+            workerService.registerWorker(worker);
+            return ResponseEntity.ok("Worker registered successfully!");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Error registering worker: " + e.getMessage());
         }
-        workerService.registerWorker(worker);
-        return ResponseEntity.ok("Worker registered successfully!");
     }
 
     @PostMapping("/login")

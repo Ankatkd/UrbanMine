@@ -13,11 +13,14 @@ import Buy from './pages/Buy';
 import CommercialDashboard from './pages/CommercialDashboard';
 import Contact from './pages/Contact';
 import OurMission from './pages/OurMission';
+import Mission from './pages/Mission';
 
 // Import your new worker components
 import WorkerRegister from './pages/WorkerRegister';
 import WorkerLogin from './pages/WorkerLogin';
 import WorkerDashboard from './pages/WorkerDashboard';
+import AdminDashboard from './pages/AdminDashboard.jsx';
+import AdminLogin from './pages/AdminLogin';
 
 function App() {
   return (
@@ -27,11 +30,13 @@ function App() {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/register" element={<Register />} />
         <Route path="/maps" element={<Maps />} />
         <Route path="/buy" element={<Buy />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/our-mission" element={<OurMission />} />
+        <Route path="/mission" element={<Mission />} />
 
         {/* Worker Specific Public Routes */}
         <Route path="/worker/register" element={<WorkerRegister />} />
@@ -49,6 +54,11 @@ function App() {
         <Route element={<ProtectedRoute allowedRoles={['worker']} />}>
             <Route path="/worker/dashboard" element={<WorkerDashboard />} />
             {/* Add other worker-specific protected routes here, e.g., for updating pickup status */}
+        </Route>
+
+        {/* Protected Routes for Admin */}
+        <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+            <Route path="/admin" element={<AdminDashboard />} />
         </Route>
 
         {/* Fallback for unknown routes */}

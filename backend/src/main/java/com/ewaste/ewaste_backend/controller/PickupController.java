@@ -46,7 +46,12 @@ public class PickupController {
             @RequestParam("phone") String phone,
             @RequestParam("email") String email,
             @RequestParam("wasteType") String wasteType,
-            @RequestParam("status") String status,
+            @RequestParam(value = "status") String status,
+            @RequestParam(value = "latitude", required = false) Double latitude,
+            @RequestParam(value = "longitude", required = false) Double longitude,
+            @RequestParam(value = "estimatedValue", required = false) Double estimatedValue,
+            @RequestParam(value = "brand", required = false) String brand,
+            @RequestParam(value = "itemDetails", required = false) String itemDetails,
             @RequestParam(value = "image", required = false) MultipartFile image) {
 
         Map<String, String> response = new HashMap<>();
@@ -65,6 +70,11 @@ public class PickupController {
             pickupRequest.setEmail(email);
             pickupRequest.setWasteType(wasteType);
             pickupRequest.setStatus(status);
+            pickupRequest.setLatitude(latitude);
+            pickupRequest.setLongitude(longitude);
+            pickupRequest.setEstimatedValue(estimatedValue);
+            pickupRequest.setBrand(brand);
+            pickupRequest.setItemDetails(itemDetails);
 
             // This line will now compile because PickupRequest.imageData is byte[]
             if (image != null && !image.isEmpty()) {
