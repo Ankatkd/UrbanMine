@@ -104,7 +104,7 @@ function OurMission() {
 
       {/* Footer */}
       <footer className="bg-green-800 text-white py-6 text-center">
-        <p>&copy; 2025 E-Waste Manager. Building a sustainable future, one device at a time. 🌿</p>
+        <p>&copy; 2025 UrbanMine. Building a sustainable future, one device at a time. 🌿</p>
       </footer>
     </div>
   );
