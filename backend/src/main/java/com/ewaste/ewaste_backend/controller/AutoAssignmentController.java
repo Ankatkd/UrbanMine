@@ -14,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auto-assignment")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin
 public class AutoAssignmentController {
 
     @Autowired

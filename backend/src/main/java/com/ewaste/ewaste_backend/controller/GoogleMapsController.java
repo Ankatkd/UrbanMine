@@ -12,7 +12,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/maps")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin
 public class GoogleMapsController {
 
     @Value("${google.maps.api.key}")
