@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 import moment from 'moment';
 
 const WorkerDashboard = () => {
@@ -36,13 +37,13 @@ const WorkerDashboard = () => {
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
         try {
-            const profileRes = await axios.get('http://localhost:8082/api/worker/profile', getAuthHeader());
+            const profileRes = await axios.get(`${API_BASE_URL}/api/worker/profile`, getAuthHeader());
             setWorkerProfile(profileRes.data);
 
-            const pickupsRes = await axios.get('http://localhost:8082/api/worker/pickups', getAuthHeader());
+            const pickupsRes = await axios.get(`${API_BASE_URL}/api/worker/pickups`, getAuthHeader());
             setPickups(pickupsRes.data);
 
-            const missedRes = await axios.get('http://localhost:8082/api/worker/pickups/missed', getAuthHeader());
+            const missedRes = await axios.get(`${API_BASE_URL}/api/worker/pickups/missed`, getAuthHeader());
             setMissedPickups(missedRes.data);
 
             setLoading(false);
@@ -62,7 +63,7 @@ const WorkerDashboard = () => {
 
     const handleMarkReached = async (id) => {
         try {
-            await axios.put(`http://localhost:8082/api/worker/pickups/${id}/reached`, {}, getAuthHeader());
+            await axios.put(`${API_BASE_URL}/api/worker/pickups/${id}/reached`, {}, getAuthHeader());
             alert("Status updated: Reached Location");
             fetchDashboardData();
         } catch (err) {
@@ -73,7 +74,7 @@ const WorkerDashboard = () => {
     const handleReschedule = async () => {
         if (!rescheduleDate || !rescheduleReason) return alert("Please fill details");
         try {
-            await axios.post(`http://localhost:8082/api/worker/pickups/${selectedPickup.id}/reschedule`, {
+            await axios.post(`${API_BASE_URL}/api/worker/pickups/${selectedPickup.id}/reschedule`, {
                 newDate: rescheduleDate,
                 reason: rescheduleReason
             }, getAuthHeader());
@@ -101,7 +102,7 @@ const WorkerDashboard = () => {
         if (newItemDetails) formData.append("details", newItemDetails);
 
         try {
-            await axios.post(`http://localhost:8082/api/worker/pickups/${selectedPickup.id}/items`, formData, {
+            await axios.post(`${API_BASE_URL}/api/worker/pickups/${selectedPickup.id}/items`, formData, {
                 headers: {
                     ...getAuthHeader().headers,
                     "Content-Type": "multipart/form-data"
@@ -128,7 +129,7 @@ const WorkerDashboard = () => {
     const handleMarkCompleted = async () => {
         // Logic for final completion (Legacy + New Items combined if needed, or just legacy logic)
         try {
-            await axios.put(`http://localhost:8082/api/worker/pickups/${selectedPickup.id}/status`, {
+            await axios.put(`${API_BASE_URL}/api/worker/pickups/${selectedPickup.id}/status`, {
                 status: 'COMPLETED',
                 collectedKgs: selectedPickup.weightKg || 0, // Should be input if needed
                 notes: 'Completed via Dashboard'
@@ -153,8 +154,8 @@ const WorkerDashboard = () => {
         <div key={pickup.id} className="relative bg-white rounded-3xl p-6 shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1 overflow-hidden group">
             {/* Status Strip */}
             <div className={`absolute left-0 top-0 bottom-0 w-2 ${pickup.status === 'COMPLETED' ? 'bg-gradient-to-b from-green-400 to-green-600' :
-                    pickup.status === 'CANCELLED' ? 'bg-gradient-to-b from-red-400 to-red-600' :
-                        'bg-gradient-to-b from-blue-400 to-indigo-600'
+                pickup.status === 'CANCELLED' ? 'bg-gradient-to-b from-red-400 to-red-600' :
+                    'bg-gradient-to-b from-blue-400 to-indigo-600'
                 }`}></div>
 
             <div className="flex justify-between items-start mb-6 pl-4">
@@ -166,8 +167,8 @@ const WorkerDashboard = () => {
                     <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">{pickup.wasteType.replace(/_/g, " ")}</h3>
                 </div>
                 <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm ${pickup.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border border-green-200' :
-                        pickup.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border border-red-200' :
-                            'bg-blue-50 text-blue-700 border border-blue-200'
+                    pickup.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border border-red-200' :
+                        'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}>
                     {pickup.status}
                 </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { API_BASE_URL } from '../services/api';
 
 function Login() {
   // State variables for form inputs and messages
@@ -16,23 +17,23 @@ function Login() {
   // Form validation
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!identifier.trim()) {
       newErrors.identifier = 'Email or phone number is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier) && !/^\d{10}$/.test(identifier.replace(/\D/g, ''))) {
       newErrors.identifier = 'Please enter a valid email or 10-digit phone number';
     }
-    
+
     if (!password) {
       newErrors.password = 'Password is required';
     } else if (password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
-    
+
     if (!role) {
       newErrors.role = 'Please select your role';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -51,7 +52,7 @@ function Login() {
 
     try {
       // Make a POST request to the login API endpoint
-      const response = await fetch('http://localhost:8082/api/login', {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,9 +132,8 @@ function Login() {
               type="text"
               id="identifier"
               name="identifier"
-              className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-300 ${
-                errors.identifier ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
+              className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-300 ${errors.identifier ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="Enter your email or phone number"
@@ -155,9 +155,8 @@ function Login() {
                 type={showPassword ? "text" : "password"}
                 id="password"
                 name="password"
-                className={`w-full p-4 pr-12 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-300 ${
-                  errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
+                className={`w-full p-4 pr-12 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition duration-300 ${errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
@@ -196,9 +195,8 @@ function Login() {
               <select
                 id="role"
                 name="role"
-                className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 appearance-none pr-10 transition duration-300 ${
-                  errors.role ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
+                className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 appearance-none pr-10 transition duration-300 ${errors.role ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 disabled={isLoading}
@@ -223,11 +221,10 @@ function Login() {
           </div>
           <button
             type="submit"
-            className={`w-full text-white p-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${
-              isLoading 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-            }`}
+            className={`w-full text-white p-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${isLoading
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+              }`}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -242,11 +239,10 @@ function Login() {
         </form>
 
         {message && (
-          <div className={`mt-4 p-4 rounded-xl text-center text-sm font-medium ${
-            message.includes('successful') || message.includes('success') 
-              ? 'bg-green-50 text-green-700 border border-green-200' 
-              : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
+          <div className={`mt-4 p-4 rounded-xl text-center text-sm font-medium ${message.includes('successful') || message.includes('success')
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+            }`}>
             <div className="flex items-center justify-center">
               <span className="mr-2">
                 {message.includes('successful') || message.includes('success') ? '✅' : '❌'}
@@ -260,8 +256,8 @@ function Login() {
           <p className="text-gray-600 mb-4">
             Don't have an account?
           </p>
-          <Link 
-            to="/register" 
+          <Link
+            to="/register"
             className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
           >
             Create Account
